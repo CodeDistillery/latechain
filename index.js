@@ -1,30 +1,22 @@
-const http = require("http");
-const net = require("net");
-
-const HTTP_PORT = process.env.HTTP_PORT || 3001;
-const P2P_PORT = process.env.P2P_PORT || 6001;
-const INITIAL_PEERS = process.env.PEERS ? process.env.PEERS.split(",") : [];
-
-const SOCKETS = [];
-
-const blockChain = new (require("./latechain"))();
+const blockchain = new (require("./latechain"))();
+const network = require("./network");
 
 async function test() {
-  blockChain.addBlock(await blockChain.generateGenesisBlock());
+  blockchain.addBlock(await blockchain.generateGenesisBlock());
 
-  blockChain.addBlock(await blockChain.generateNextBlock("testi dataa"));
-  blockChain.addBlock(await blockChain.generateNextBlock("testi dataa"));
+  blockchain.addBlock(await blockchain.generateNextBlock("testi dataa"));
+  blockchain.addBlock(await blockchain.generateNextBlock("testi dataa"));
 
-  blockChain.setDifficultyScore(12);
+  blockchain.setDifficultyScore(12);
 
-  blockChain.addBlock(await blockChain.generateNextBlock("testi dataa"));
-  blockChain.addBlock(
-    await blockChain.generateNextBlock({ some: "object", data: "yes" })
+  blockchain.addBlock(await blockchain.generateNextBlock("testi dataa"));
+  blockchain.addBlock(
+    await blockchain.generateNextBlock({ some: "object", data: "yes" })
   );
 
-  console.log(blockChain.chain);
+  console.log(blockchain.chain);
   try {
-    if (!blockChain.isValidChain(blockChain.chain)) {
+    if (!blockchain.isValidChain(blockchain.chain)) {
       console.log("Chain is not valid!");
     }
   } catch (e) {
@@ -32,6 +24,6 @@ async function test() {
   }
 }
 
-test();
+network.initServer(blockchain);
 
-const server = http.createServer(async (req, res) => {});
+test();
