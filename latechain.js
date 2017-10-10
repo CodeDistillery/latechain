@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 
 const DEFAULT_GENESIS_DATA = "genesis block";
-const DEFAULT_DIFFICULTY = 8;
+const DEFAULT_DIFFICULTY = 16;
 const BYTE_LENGTH = 8;
 
 function Module(
@@ -118,7 +118,7 @@ Module.prototype.setDifficultyScore = function(newDifficultyScore) {
   this.difficultyScore = newDifficultyScore;
 };
 
-Module.prototype.generateNextBlock = function(data) {
+Module.prototype.generateNextBlock = async function(data) {
   const previousBlock = getLatestBlock(this.chain);
   const nextIndex = (previousBlock && previousBlock.index + 1) || 0;
   const previousHash = (previousBlock && previousBlock.hash) || 0;
@@ -130,7 +130,7 @@ Module.prototype.generateNextBlock = function(data) {
     data,
     this.difficultyScore
   );
-  const proofOfWork = this.generateProofOfWork(nextHash);
+
   return new Block(
     nextIndex,
     previousHash,
@@ -138,26 +138,27 @@ Module.prototype.generateNextBlock = function(data) {
     data,
     nextHash,
     this.difficultyScore,
-    proofOfWork
+    await this.generateProofOfWork(nextHash)
   );
 };
 
 Module.prototype.generateProofOfWork = function(challenge) {
-  console.info(
-    `Generating proofOfWork with difficulty of ${this.difficultyScore}`
-  );
-
-  let challengeLength = Buffer.byteLength(challenge, "hex");
+  const difficultyScore = this.difficultyScore;
+  const challengeLength = Buffer.byteLength(challenge, "hex");
   let proofOfWork;
   let i = 0;
-  do {
-    i++;
-    proofOfWork = crypto.randomBytes(challengeLength).toString("hex");
-  } while (!checkProofOfWork(challenge, proofOfWork, this.difficultyScore));
 
-  console.info(`Found proper proof on iteration ${i}`);
-
-  return proofOfWork;
+  return new Promise(resolve => {
+    console.info(
+      `Generating proofOfWork with difficulty of ${difficultyScore}`
+    );
+    do {
+      i++;
+      proofOfWork = crypto.randomBytes(challengeLength).toString("hex");
+    } while (!checkProofOfWork(challenge, proofOfWork, difficultyScore));
+    console.info(`Found proper proof on iteration ${i}`);
+    resolve(proofOfWork);
+  });
 };
 
 Module.prototype.isValidChain = function(chain) {
