@@ -81,12 +81,12 @@ function generateProofOfWork(challenge, difficultyScore) {
   do {
     i++;
     proofOfWork = crypto.randomBytes(challengeLength).toString("hex");
-  } while (!checkProofOfWork(challenge, proofOfWork, difficultyScore));
+  } while (!checkProofOfWork(challenge, proofOfWork));
   console.info(`Found proper proof on iteration ${i}`);
   return proofOfWork;
 }
 
-function checkProofOfWork(challenge, proofOfWork, difficultyScore) {
+function checkProofOfWork(challenge, proofOfWork) {
   return crypto
     .createHash("sha256")
     .update(challenge)
@@ -113,9 +113,7 @@ function isValidNewBlock(newBlock, previousBlock) {
     if (hash !== newBlock.hash) {
       console.info("invalid hash");
       return false;
-    } else if (
-      !checkProofOfWork(hash, newBlock.proofOfWork, newBlock.difficultyScore)
-    ) {
+    } else if (!checkProofOfWork(hash, newBlock.proofOfWork)) {
       console.info("invalid proof of work");
       return false;
     }
