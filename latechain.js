@@ -20,7 +20,7 @@ function Block(
   data,
   hash,
   difficultyScore,
-  proofOfWork
+  nonce
 ) {
   this.index = index;
   this.previousHash = previousHash;
@@ -28,28 +28,19 @@ function Block(
   this.data = data;
   this.hash = hash;
   this.difficultyScore = difficultyScore;
-  this.proofOfWork = proofOfWork;
-}
-
-function calculateHash(index, previousHash, timestamp, data, difficultyScore) {
-  return crypto
-    .createHash("sha256")
-    .update(index.toString())
-    .update(previousHash.toString())
-    .update(timestamp.toString())
-    .update(data.toString())
-    .update(difficultyScore.toString())
-    .digest("hex");
+  this.nonce = nonce;
 }
 
 function calculateHashForBlock(block) {
-  return calculateHash(
-    block.index,
-    block.previousHash,
-    block.timestamp,
-    block.data,
-    block.difficultyScore
-  );
+  return crypto
+    .createHash("sha256")
+    .update(block.index.toString())
+    .update(block.previousHash.toString())
+    .update(block.timestamp.toString())
+    .update(block.data.toString())
+    .update(block.difficultyScore.toString())
+    .update(block.nonce.toString())
+    .digest("hex");
 }
 
 function getLatestBlock(chain) {
@@ -66,7 +57,7 @@ function difficultyOfChain(chain) {
   );
 }
 
-function checkProofOfWork(challenge, proofOfWork, difficultyScore) {
+function checkProofOfWork(proofOfWork, difficultyScore) {
   const neededMaskBytes = Math.ceil(difficultyScore / BYTE_LENGTH);
   const usePartialMask = difficultyScore % BYTE_LENGTH !== 0;
   const partialBitMask = parseInt(
@@ -74,11 +65,7 @@ function checkProofOfWork(challenge, proofOfWork, difficultyScore) {
     2
   );
 
-  return crypto
-    .createHash("sha256")
-    .update(challenge)
-    .update(proofOfWork)
-    .digest()
+  return new Buffer(proofOfWork, "hex") // Convert hex digest into buffer
     .slice(0, neededMaskBytes) // Take only the needed bytes
     .every((byte, byteIdx, array) => {
       if (usePartialMask && byteIdx === array.length - 1) {
@@ -95,22 +82,14 @@ function isValidNewBlock(newBlock, previousBlock) {
   } else if (previousBlock.hash !== newBlock.previousHash) {
     console.info("invalid previoushash");
     return false;
-  } else {
-    const hash = calculateHashForBlock(newBlock);
-    if (hash !== newBlock.hash) {
-      console.info("invalid hash");
-      return false;
-    } else if (
-      !checkProofOfWork(
-        newBlock.hash,
-        newBlock.proofOfWork,
-        newBlock.difficultyScore
-      )
-    ) {
-      console.info("invalid proof of work");
-      return false;
-    }
+  } else if (calculateHashForBlock(newBlock) !== newBlock.hash) {
+    console.info("invalid hash");
+    return false;
+  } else if (!checkProofOfWork(newBlock.hash, newBlock.difficultyScore)) {
+    console.info("invalid proof of work");
+    return false;
   }
+
   return true;
 }
 
@@ -123,42 +102,24 @@ Module.prototype.generateNextBlock = async function(data) {
   const nextIndex = (previousBlock && previousBlock.index + 1) || 0;
   const previousHash = (previousBlock && previousBlock.hash) || 0;
   const nextTimestamp = Math.floor(new Date().getTime() / 1000);
-  const nextHash = calculateHash(
-    nextIndex,
-    previousHash,
-    nextTimestamp,
-    data,
-    this.difficultyScore
-  );
 
-  return new Block(
+  const newBlock = new Block(
     nextIndex,
     previousHash,
     nextTimestamp,
     data,
-    nextHash,
+    null,
     this.difficultyScore,
-    await this.generateProofOfWork(nextHash)
+    0
   );
-};
 
-Module.prototype.generateProofOfWork = function(challenge) {
-  const difficultyScore = this.difficultyScore;
-  const challengeLength = Buffer.byteLength(challenge, "hex");
-  let proofOfWork;
-  let i = 0;
+  newBlock.hash = calculateHashForBlock(newBlock);
+  while (!checkProofOfWork(newBlock.hash, newBlock.difficultyScore)) {
+    newBlock.nonce++;
+    newBlock.hash = calculateHashForBlock(newBlock);
+  }
 
-  return new Promise(resolve => {
-    console.info(
-      `Generating proofOfWork with difficulty of ${difficultyScore}`
-    );
-    do {
-      i++;
-      proofOfWork = crypto.randomBytes(challengeLength).toString("hex");
-    } while (!checkProofOfWork(challenge, proofOfWork, difficultyScore));
-    console.info(`Found proper proof on iteration ${i}`);
-    resolve(proofOfWork);
-  });
+  return newBlock;
 };
 
 Module.prototype.isValidChain = function(chain) {
